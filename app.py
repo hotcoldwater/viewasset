@@ -121,6 +121,12 @@ section.main [data-testid="stExpander"] details {
   border-radius: 10px;
 }
 
+section.main [data-testid="stExpander"] {
+  background: var(--va-white);
+  border: 1px solid var(--va-border);
+  border-radius: 10px;
+}
+
 section.main [data-testid="stExpander"] summary {
   background: var(--va-white) !important;
   color: var(--va-text) !important;
@@ -128,6 +134,10 @@ section.main [data-testid="stExpander"] summary {
 
 section.main [data-testid="stExpander"] summary:focus,
 section.main [data-testid="stExpander"] summary:active {
+  background: var(--va-white) !important;
+}
+
+section.main [data-testid="stExpander"] details[open] summary {
   background: var(--va-white) !important;
 }
 
@@ -185,6 +195,21 @@ section.main [data-testid="stExpander"] details > div {
   color: var(--va-blue-900);
 }
 
+[data-testid="stSidebar"] .stButton:last-of-type > button {
+  background: var(--va-white);
+  border-color: var(--va-blue-200);
+  color: var(--va-text);
+}
+
+[data-testid="stSidebar"] .stButton:last-of-type > button * {
+  color: var(--va-text);
+}
+
+[data-testid="stSidebar"] .stButton:last-of-type > button:hover {
+  background: var(--va-white);
+  color: var(--va-blue-900);
+}
+
 section.main .vega-embed,
 section.main .vega-embed canvas,
 section.main .vega-embed svg {
@@ -197,7 +222,11 @@ input, textarea, select {
 }
 
 [data-testid="stTextInput"] label,
-[data-testid="stFileUploader"] label,
+[data-testid="stFileUploader"] label {
+  color: var(--va-text) !important;
+  background: transparent !important;
+}
+
 .stDownloadButton > button {
   border: 1px solid var(--va-blue-500);
   background: var(--va-blue-500);
