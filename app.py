@@ -923,7 +923,7 @@ def show_result(result: dict, current_holdings: dict, layout: str = "side"):
                     alt.Tooltip("Pct:Q", format=".1f"),
                 ],
             )
-            .properties(height=280, width=280)
+            .properties(height=280, width=320)
         )
         st.altair_chart(chart, use_container_width=True)
 
