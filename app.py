@@ -59,6 +59,14 @@ st.markdown(
   color: var(--va-text);
 }
 
+section.main, section.main * {
+  color: var(--va-text);
+}
+
+section.main a {
+  color: var(--va-blue-700);
+}
+
 [data-testid="stHeader"] {
   background: transparent;
 }
