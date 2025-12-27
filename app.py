@@ -12,6 +12,32 @@ import yfinance as yf
 
 
 # ======================
+# Altair theme (light)
+# ======================
+def _altair_theme():
+    return {
+        "config": {
+            "background": "#ffffff",
+            "view": {"stroke": "#c8ddf5", "fill": "#ffffff"},
+            "axis": {
+                "labelColor": "#0b1c2c",
+                "titleColor": "#0b1c2c",
+                "gridColor": "#d7e2ef",
+                "domainColor": "#8aa4bf",
+                "tickColor": "#8aa4bf",
+            },
+            "legend": {"labelColor": "#0b1c2c", "titleColor": "#0b1c2c"},
+            "title": {"color": "#0b1c2c"},
+        }
+    }
+
+
+if "va_light" not in alt.themes.names():
+    alt.themes.register("va_light", _altair_theme)
+alt.themes.enable("va_light")
+
+
+# ======================
 # 공통 설정
 # ======================
 TICKER_LIST = ["SPY", "EFA", "EEM", "AGG", "LQD", "IEF", "SHY", "IWD", "GLD", "QQQ", "BIL"]
@@ -71,12 +97,43 @@ section.main a {
   background: transparent;
 }
 
+[data-testid="stToolbar"] * {
+  color: var(--va-text) !important;
+  fill: var(--va-text) !important;
+}
+
+[data-testid="stToolbar"] button,
+[data-testid="stToolbar"] a {
+  color: var(--va-text) !important;
+}
+
 [data-testid="stSidebar"] {
   background: linear-gradient(180deg, var(--va-blue-900) 0%, var(--va-blue-700) 100%);
 }
 
 [data-testid="stSidebar"] * {
   color: var(--va-text-invert);
+}
+
+section.main [data-testid="stExpander"] details {
+  background: var(--va-white);
+  border: 1px solid var(--va-border);
+  border-radius: 10px;
+}
+
+section.main [data-testid="stExpander"] summary {
+  background: var(--va-white) !important;
+  color: var(--va-text) !important;
+}
+
+section.main [data-testid="stExpander"] summary:focus,
+section.main [data-testid="stExpander"] summary:active {
+  background: var(--va-white) !important;
+}
+
+section.main [data-testid="stExpander"] details > div {
+  background: var(--va-white);
+  color: var(--va-text);
 }
 
 .stButton > button {
@@ -104,7 +161,7 @@ section.main a {
 
 [data-testid="stSidebar"] .stButton > button {
   border-color: var(--va-blue-200);
-  background: var(--va-white);
+  background: var(--va-blue-200);
   color: var(--va-text);
 }
 
@@ -128,6 +185,12 @@ section.main a {
   color: var(--va-blue-900);
 }
 
+section.main .vega-embed,
+section.main .vega-embed canvas,
+section.main .vega-embed svg {
+  background: var(--va-white) !important;
+}
+
 input, textarea, select {
   color: var(--va-text) !important;
   background: var(--va-white) !important;
@@ -135,9 +198,21 @@ input, textarea, select {
 
 [data-testid="stTextInput"] label,
 [data-testid="stFileUploader"] label,
-.stDownloadButton > button,
+.stDownloadButton > button {
+  border: 1px solid var(--va-blue-500);
+  background: var(--va-blue-500);
+  color: var(--va-text-invert) !important;
+  font-weight: 600;
+}
+
+.stDownloadButton > button:hover {
+  background: var(--va-blue-700);
+  border-color: var(--va-blue-700);
+  color: var(--va-text-invert) !important;
+}
+
 .stDownloadButton > button * {
-  color: var(--va-text) !important;
+  color: var(--va-text-invert) !important;
 }
 
 div[data-testid="stMetric"] {
@@ -835,12 +910,17 @@ def export_holdings_only(executed: dict, timestamp: str) -> dict:
 def render_execution_editor(result: dict, editor_prefix: str):
     st.subheader("실제 보유자산")
 
+    strategy_labels = {
+        "VAA": "Vigilant Asset Allocation",
+        "LAA": "Lethargic Asset Allocation",
+        "TDM": "Tactical Dual Momentum",
+    }
     executed = {"VAA": {"holdings": {}}, "LAA": {"holdings": {}}, "TDM": {"holdings": {}}}
 
     for strat in ["VAA", "LAA", "TDM"]:
         rec = result[strat]["holdings"]
 
-        with st.expander(strat, expanded=(strat == "VAA")):
+        with st.expander(strategy_labels.get(strat, strat), expanded=(strat == "VAA")):
             cols = st.columns(5)
             for i, t in enumerate(STRATEGY_TICKERS.get(strat, [])):
                 default_q = int(rec.get(t, 0))
