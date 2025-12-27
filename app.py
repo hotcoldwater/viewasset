@@ -56,8 +56,10 @@ if "mode" not in st.session_state:
     st.session_state["mode"] = "Monthly"
 
 mode = st.session_state["mode"]
+if mode not in ("Monthly", "Annual"):
+    st.session_state["mode"] = "Monthly"
+    mode = "Monthly"
 
-# ✅ Backtest 버튼 추가 (Monthly/Annual 최대한 유지)
 st.sidebar.button(
     "자산배분 포트폴리오",
     type="primary" if mode == "Monthly" else "secondary",
@@ -72,30 +74,6 @@ st.sidebar.button(
     on_click=_set_mode,
     args=("Annual",),
 )
-st.sidebar.button(
-    "Backtest",
-    type="primary" if mode == "Backtest" else "secondary",
-    use_container_width=True,
-    on_click=_set_mode,
-    args=("Backtest",),
-)
-
-if st.sidebar.button("Refresh", use_container_width=True):
-    st.cache_data.clear()
-    # 실행 결과/편집 상태도 같이 초기화
-    for k in list(st.session_state.keys()):
-        if k.startswith(
-            (
-                "annual_result",
-                "monthly_result",
-                "exec_annual_",
-                "exec_monthly_",
-                "monthly_file_sig",
-                "backtest_result",
-            )
-        ):
-            del st.session_state[k]
-    st.rerun()
 
 st.divider()
 
@@ -1588,7 +1566,7 @@ def bt_run_backtest(
 
 
 # ======================
-# 화면: Annual / Monthly / Backtest
+# 화면: Annual / Monthly
 # ======================
 if mode == "Annual":
     st.header("Annual Rebalancing")
@@ -1636,6 +1614,23 @@ if mode == "Annual":
             mime="application/json",
             use_container_width=False,
         )
+
+if st.sidebar.button("새로고침", use_container_width=True):
+    st.cache_data.clear()
+    # 실행 결과/편집 상태도 같이 초기화
+    for k in list(st.session_state.keys()):
+        if k.startswith(
+            (
+                "annual_result",
+                "monthly_result",
+                "exec_annual_",
+                "exec_monthly_",
+                "monthly_file_sig",
+                "backtest_result",
+            )
+        ):
+            del st.session_state[k]
+    st.rerun()
 
 elif mode == "Monthly":
     st.header("자산배분 포트폴리오")
@@ -1710,212 +1705,4 @@ elif mode == "Monthly":
             file_name=f"rebalance_exec_{result['timestamp'].replace(':','-').replace(' ','_')}.json",
             mime="application/json",
             use_container_width=False,
-        )
-
-else:
-    # ======================
-    # Backtest UI (UPDATED)
-    # ======================
-    st.header("Backtest")
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1:
-        bt_start_ym = st.text_input(
-            "Start month (YYYY-MM)",
-            value=st.session_state.get("bt_start_ym", "2000-01"),
-            key="bt_start_ym",
-        )
-    with c2:
-        bt_end_in = st.text_input(
-            "End date (YYYY-MM-DD or YYYY-MM)",
-            value=st.session_state.get("bt_end_in", today.strftime("%Y-%m-%d")),
-            key="bt_end_in",
-        )
-    with c3:
-        # ✅ 변경: All benchmarks 옵션 추가
-        bench_options = [BT_ALL_BENCH_LABEL] + list(BT_BENCHMARKS.keys())
-        default_bench = st.session_state.get("bt_bench", "S&P 500 (SPY) [USD]")
-        idx = bench_options.index(default_bench) if default_bench in bench_options else 1
-        bt_bench = st.selectbox("Benchmark", options=bench_options, index=idx, key="bt_bench")
-    with c4:
-        bt_fractional = st.selectbox("Benchmark fractional shares", options=["Yes", "No"], index=0, key="bt_fractional")
-    with c5:
-        # ✅ NEW: 리밸런싱일 선택
-        bt_reb_day = st.number_input(
-            "Rebalance day of month (1~31)",
-            min_value=1,
-            max_value=31,
-            value=int(st.session_state.get("bt_reb_day", 10)),
-            step=1,
-            key="bt_reb_day",
-        )
-
-    r1, r2, r3, r4 = st.columns(4)
-    with r1:
-        bt_initial_krw = money_input_en("Initial KRW", key="bt_initial_krw", default=0, allow_decimal=False)
-    with r2:
-        bt_initial_usd = money_input_en("Initial USD", key="bt_initial_usd", default=0, allow_decimal=True)
-    with r3:
-        bt_add_krw = money_input_en("Monthly add KRW", key="bt_add_krw", default=0, allow_decimal=False)
-    with r4:
-        bt_add_usd = money_input_en("Monthly add USD", key="bt_add_usd", default=0, allow_decimal=True)
-
-    run_bt = st.button("Run Backtest", type="primary", use_container_width=True)
-
-    if run_bt:
-        try:
-            with st.spinner("Running backtest..."):
-                out = bt_run_backtest(
-                    start_month_ym=bt_start_ym,
-                    end_date_in=bt_end_in,
-                    initial_krw=float(bt_initial_krw),
-                    initial_usd=float(bt_initial_usd),
-                    monthly_add_krw=float(bt_add_krw),
-                    monthly_add_usd=float(bt_add_usd),
-                    bench_label=bt_bench,
-                    bench_fractional=(bt_fractional == "Yes"),
-                    rebalance_day=int(bt_reb_day),
-                )
-            st.session_state["backtest_result"] = out
-            st.success("Completed")
-        except Exception as e:
-            st.error(str(e))
-
-    if "backtest_result" in st.session_state:
-        out = st.session_state["backtest_result"]
-
-        a, b, c, d, e0 = st.columns(5)
-        a.metric("Rebalance day", f"{int(out.get('rebalance_day', 10))}")
-        b.metric("Start rebalance (asof)", str(pd.to_datetime(out["start_rebalance_asof"]).date()))
-        c.metric("End eval (asof)", str(pd.to_datetime(out["end_eval_asof"]).date()))
-        d.metric("Total invested (USD)", f"${out['total_invested_usd']:,.2f}")
-        e0.metric("Final (USD)", f"${out['final_usd']:,.2f}")
-
-        e, f, g, h = st.columns(4)
-        e.metric("Final (KRW)", f"₩{out['final_krw']:,.0f}")
-        f.metric("Return vs invested", f"{out['return_pct_vs_total_invested']:.2f}%")
-        g.metric("CAGR (TWR)", f"{out['cagr_twr_pct']:.2f}%")
-
-        # ✅ 단일/전체 벤치 분기
-        if out.get("benchmark_label") != BT_ALL_BENCH_LABEL:
-            bench = out["benchmark"]
-            h.metric("Benchmark CAGR (TWR)", f"{bench['cagr_twr_pct']:.2f}%")
-        else:
-            # All 모드에서는 Best/Worst로 요약
-            items = out.get("bench_results_map", {})
-            cagr_list = [(k, float(v.get("cagr_twr_pct", 0.0))) for k, v in items.items()]
-            cagr_list.sort(key=lambda x: x[1], reverse=True)
-            if cagr_list:
-                best_k, best_v = cagr_list[0]
-                worst_k, worst_v = cagr_list[-1]
-                h.metric("Bench best/worst CAGR", f"{best_v:.2f}% / {worst_v:.2f}%")
-            else:
-                h.metric("Bench best/worst CAGR", "-")
-
-        port_series = out["port_series"].copy()
-
-        # ✅ 차트: 단일이면 PORT + BENCH, All이면 PORT + 4 BENCH
-        series_map = {"PORT": port_series}
-
-        if out.get("benchmark_label") != BT_ALL_BENCH_LABEL:
-            bench_series = out["bench_series"].copy() if out.get("bench_series") is not None else None
-            if bench_series is not None:
-                series_map["BENCH"] = bench_series
-        else:
-            for label, s in out.get("bench_series_map", {}).items():
-                # legend 너무 길면 축약(괄호 앞까지만)
-                short = label.split(" (")[0]
-                key = f"BENCH: {short}"
-                series_map[key] = s
-
-        df_chart = pd.concat([v.rename(k) for k, v in series_map.items()], axis=1).dropna()
-
-        if not df_chart.empty:
-            df_chart = df_chart / df_chart.iloc[0]
-            df_chart = df_chart.reset_index().rename(columns={"index": "Date"})
-            value_cols = [c for c in df_chart.columns if c != "Date"]
-            df_melt = df_chart.melt(id_vars=["Date"], value_vars=value_cols, var_name="Series", value_name="Value")
-
-            chart = (
-                alt.Chart(df_melt)
-                .mark_line()
-                .encode(
-                    x=alt.X("Date:T"),
-                    y=alt.Y("Value:Q"),
-                    color=alt.Color("Series:N"),
-                    tooltip=[alt.Tooltip("Date:T"), alt.Tooltip("Series:N"), alt.Tooltip("Value:Q", format=".4f")],
-                )
-                .properties(height=360)
-            )
-            st.altair_chart(chart, use_container_width=True)
-
-        # ✅ All 모드일 때 벤치마크 성과표 추가
-        if out.get("benchmark_label") == BT_ALL_BENCH_LABEL:
-            items = out.get("bench_results_map", {})
-            if items:
-                rows = []
-                for label, v in items.items():
-                    rows.append(
-                        {
-                            "Benchmark": label,
-                            "CAGR (TWR) %": float(v.get("cagr_twr_pct", 0.0)),
-                            "Return vs invested %": float(v.get("return_pct_vs_total_invested", 0.0)),
-                            "Final (USD)": float(v.get("final_usd", 0.0)),
-                            "Ticker": v.get("ticker", ""),
-                            "CCY": v.get("ccy", ""),
-                        }
-                    )
-                df_b = pd.DataFrame(rows).sort_values("CAGR (TWR) %", ascending=False, ignore_index=True)
-                with st.expander("Benchmarks (All) - summary", expanded=True):
-                    showb = df_b.copy()
-                    showb["CAGR (TWR) %"] = showb["CAGR (TWR) %"].map(lambda x: f"{x:.2f}%")
-                    showb["Return vs invested %"] = showb["Return vs invested %"].map(lambda x: f"{x:.2f}%")
-                    showb["Final (USD)"] = showb["Final (USD)"].map(lambda x: f"{x:,.2f}")
-                    st.dataframe(showb, use_container_width=True, hide_index=True)
-
-        df_log = out["log"].copy()
-        with st.expander("Log (last 6)", expanded=True):
-            show = df_log.tail(6).copy()
-            show["asof"] = pd.to_datetime(show["asof"]).dt.date.astype(str)
-            show["total_usd"] = show["total_usd"].map(lambda x: f"{x:,.2f}")
-            show["total_krw"] = show["total_krw"].map(lambda x: f"{x:,.0f}")
-            st.dataframe(
-                show[["asof", "rebalance_all", "total_usd", "total_krw", "VAA_picked", "LAA_safe", "TDM_picked"]],
-                use_container_width=True,
-                hide_index=True,
-            )
-
-        with st.expander("Log (full)", expanded=False):
-            tmp = df_log.copy()
-            tmp["asof"] = pd.to_datetime(tmp["asof"])
-            st.dataframe(tmp, use_container_width=True, hide_index=True)
-
-        st.download_button(
-            "Download log (CSV)",
-            data=df_log.to_csv(index=False).encode("utf-8"),
-            file_name="backtest_log.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-
-        # ✅ summary JSON: 단일/전체 모두 담기
-        summary_payload = {
-            "rebalance_day": int(out.get("rebalance_day", 10)),
-            "start_rebalance_asof": str(pd.to_datetime(out["start_rebalance_asof"]).date()),
-            "end_eval_asof": str(pd.to_datetime(out["end_eval_asof"]).date()),
-            "total_invested_usd": out["total_invested_usd"],
-            "final_usd": out["final_usd"],
-            "final_krw": out["final_krw"],
-            "return_pct_vs_total_invested": out["return_pct_vs_total_invested"],
-            "cagr_twr_pct": out["cagr_twr_pct"],
-            "benchmark_label": out.get("benchmark_label"),
-            "benchmark": out.get("benchmark"),
-            "bench_results_map": out.get("bench_results_map"),
-        }
-        st.download_button(
-            "Download summary (JSON)",
-            data=json.dumps(summary_payload, indent=2),
-            file_name="backtest_summary.json",
-            mime="application/json",
-            use_container_width=True,
         )
