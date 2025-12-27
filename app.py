@@ -97,6 +97,11 @@ section.main a {
   background: transparent;
 }
 
+[data-testid="stHeader"] * {
+  color: var(--va-text) !important;
+  fill: var(--va-text) !important;
+}
+
 [data-testid="stToolbar"] * {
   color: var(--va-text) !important;
   fill: var(--va-text) !important;
@@ -105,6 +110,11 @@ section.main a {
 [data-testid="stToolbar"] button,
 [data-testid="stToolbar"] a {
   color: var(--va-text) !important;
+}
+
+[data-testid="stHeaderActionElements"] * {
+  color: var(--va-text) !important;
+  fill: var(--va-text) !important;
 }
 
 [data-testid="stSidebar"] {
