@@ -41,6 +41,12 @@ alt.themes.enable("va_light")
 # 공통 설정
 # ======================
 TICKER_LIST = ["SPY", "EFA", "EEM", "AGG", "LQD", "IEF", "SHY", "IWD", "GLD", "QQQ", "BIL"]
+MARKET_TICKERS = {
+    "코스피": "^KS11",
+    "코스닥": "^KQ11",
+    "나스닥": "^IXIC",
+    "S&P 500": "^GSPC",
+}
 
 # ✅ 사용자가 직접 보유 입력하는 티커(=BIL 입력칸 제거)
 INPUT_TICKERS = [t for t in TICKER_LIST if t != "BIL"]
@@ -893,9 +899,14 @@ def show_result(result: dict, current_holdings: dict, layout: str = "side"):
 
         rows = []
         for cat, v in values.items():
-            pct = int(round((v / total) * 100))
+            pct = round((v / total) * 100, 1)
             rows.append(
-                {"Category": cat, "Value": float(v), "Pct": pct, "Label": f"{cat}\n{pct}%"}
+                {
+                    "Category": cat,
+                    "CategoryLabel": f"{cat} {pct:.1f}%",
+                    "Value": float(v),
+                    "Pct": pct,
+                }
             )
 
         df = pd.DataFrame(rows)
@@ -905,8 +916,12 @@ def show_result(result: dict, current_holdings: dict, layout: str = "side"):
             .mark_arc(outerRadius=outer_radius)
             .encode(
                 theta=alt.Theta("Value:Q"),
-                color=alt.Color("Category:N", legend=alt.Legend(title="분류")),
-                tooltip=["Category:N", alt.Tooltip("Value:Q", format=",.2f"), "Label:N"],
+                color=alt.Color("CategoryLabel:N", legend=alt.Legend(title=None)),
+                tooltip=[
+                    "Category:N",
+                    alt.Tooltip("Value:Q", format=",.2f"),
+                    alt.Tooltip("Pct:Q", format=".1f"),
+                ],
             )
             .properties(height=280, width=280)
         )
@@ -961,19 +976,26 @@ def render_execution_editor(result: dict, editor_prefix: str):
     }
     executed = {"VAA": {"holdings": {}}, "LAA": {"holdings": {}}, "TDM": {"holdings": {}}}
 
-    for strat in ["VAA", "LAA", "TDM"]:
+    for idx, strat in enumerate(["VAA", "LAA", "TDM"]):
         rec = result[strat]["holdings"]
 
-        with st.expander(strategy_labels.get(strat, strat), expanded=(strat == "VAA")):
-            cols = st.columns(5)
-            for i, t in enumerate(STRATEGY_TICKERS.get(strat, [])):
-                default_q = int(rec.get(t, 0))
-                key = f"{editor_prefix}{strat}_{t}"
-                with cols[i % 5]:
-                    q = st.number_input(t, min_value=0, value=default_q, step=1, key=key)
+        label = strategy_labels.get(strat, strat)
+        st.markdown(
+            f"<div style='font-weight:700; text-decoration: underline;'>{label}</div>",
+            unsafe_allow_html=True,
+        )
+        cols = st.columns(5)
+        for i, t in enumerate(STRATEGY_TICKERS.get(strat, [])):
+            default_q = int(rec.get(t, 0))
+            key = f"{editor_prefix}{strat}_{t}"
+            with cols[i % 5]:
+                q = st.number_input(t, min_value=0, value=default_q, step=1, key=key)
 
-                if int(q) != 0:
-                    executed[strat]["holdings"][t] = int(q)
+            if int(q) != 0:
+                executed[strat]["holdings"][t] = int(q)
+
+        if idx < 2:
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
     return executed
 
@@ -992,6 +1014,13 @@ d_1m, d_3m, d_6m, d_12m = [today_naive - timedelta(days=d) for d in [30, 90, 180
 with st.spinner("가격/환율 불러오는 중..."):
     prices = {t: last_adj_close(t) for t in TICKER_LIST}
     usdkrw_rate = fx_usdkrw()
+    market_indices = {k: last_adj_close(v) for k, v in MARKET_TICKERS.items()}
+
+market_items = list(market_indices.items()) + [("달러환율", usdkrw_rate)]
+cols = st.columns(len(market_items))
+for col, (label, value) in zip(cols, market_items):
+    with col:
+        st.metric(label, f"{value:,.2f}")
 
 
 # ======================
@@ -1248,11 +1277,12 @@ elif mode == "Monthly":
 
         executed = render_execution_editor(result, editor_prefix="exec_monthly_")
         payload = export_holdings_only(executed, timestamp=result["timestamp"])
+        file_date = result["timestamp"].split(" ")[0]
 
         st.download_button(
             label="저장",
             data=json.dumps(payload, indent=2),
-            file_name=f"rebalance_exec_{result['timestamp'].replace(':','-').replace(' ','_')}.json",
+            file_name=f"자산배분_포트폴리오_{file_date}.json",
             mime="application/json",
             use_container_width=False,
         )
