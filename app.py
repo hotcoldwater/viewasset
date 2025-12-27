@@ -128,17 +128,17 @@ section.main [data-testid="stExpander"] {
 }
 
 section.main [data-testid="stExpander"] summary {
-  background: var(--va-white) !important;
-  color: var(--va-text) !important;
+  background: #0e1117 !important;
+  color: #ffffff !important;
 }
 
 section.main [data-testid="stExpander"] summary:focus,
 section.main [data-testid="stExpander"] summary:active {
-  background: var(--va-white) !important;
+  background: #0e1117 !important;
 }
 
 section.main [data-testid="stExpander"] details[open] summary {
-  background: var(--va-white) !important;
+  background: #0e1117 !important;
 }
 
 section.main [data-testid="stExpander"] details > div {
