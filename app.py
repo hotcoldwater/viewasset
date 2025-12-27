@@ -866,6 +866,25 @@ def show_result(result: dict, current_holdings: dict, layout: str = "side"):
             .properties(height=280)
         )
         st.altair_chart(chart, use_container_width=True)
+        try:
+            unrate_now, unrate_ma = _unrate_info(today)
+            cycle_label = "호경기" if float(unrate_now) <= float(unrate_ma) else "불경기"
+        except Exception:
+            cycle_label = "판단불가"
+
+        try:
+            spy_hist = _download_hist_one("SPY", period="2y")
+            spy_200ma = spy_hist["Adj Close"].rolling(200).mean().iloc[-1]
+            if spy_200ma != spy_200ma:
+                raise RuntimeError("SPY 200MA is NaN.")
+            trend_label = "상승장" if float(price_map["SPY"]) >= float(spy_200ma) else "하락장"
+        except Exception:
+            trend_label = "판단불가"
+
+        st.subheader("미국경제")
+        c1, c2 = st.columns(2)
+        c1.metric("시장", trend_label)
+        c2.metric("경기", cycle_label)
 
     def render_portfolio_pie():
         st.subheader("포트폴리오 현황")
