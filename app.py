@@ -682,7 +682,7 @@ def safe_laa_asset(today: datetime, prices: dict) -> str:
     if spy_200ma != spy_200ma:
         return "QQQ"
 
-    risk_off = (float(prices["SPY"]) < float(spy_200ma)) or (unrate_now > unrate_ma)
+    risk_off = (float(prices["SPY"]) < float(spy_200ma)) and (unrate_now > unrate_ma)
     return "SHY" if risk_off else "QQQ"
 
 
@@ -883,7 +883,7 @@ def show_result(result: dict, current_holdings: dict, layout: str = "side"):
 
         st.subheader("미국경제")
         c1, c2 = st.columns(2)
-        c1.metric("시장", trend_label)
+        c1.metric("주식시장", trend_label)
         c2.metric("경기", cycle_label)
 
     def render_portfolio_pie():
