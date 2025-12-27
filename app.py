@@ -1,14 +1,21 @@
 import json
 import hashlib
 import io
+from dataclasses import dataclass
+from typing import Iterable
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 from datetime import datetime, timedelta
 
 import altair as alt
 import pandas as pd
+import requests
 import streamlit as st
 import yfinance as yf
+try:
+    from pykrx import stock as krx_stock
+except Exception:
+    krx_stock = None
 
 
 # ======================
@@ -41,6 +48,30 @@ alt.themes.enable("va_light")
 # 공통 설정
 # ======================
 TICKER_LIST = ["IVV", "IEFA", "IEMG", "AGG", "LQD", "IEF", "VGSH", "VONV", "IAUM", "QQQ", "BIL"]
+PENSION_TICKERS = {
+    "TIGER_US_SP500": "360750",
+    "KODEX_US_NASDAQ100": "379810",
+    "KODEX_200": "069500",
+    "TIGER_KRX_GOLD": "0072R0",
+    "KODEX_KTB_10Y_ACTIVE": "471230",
+    "KODEX_KOFR_ACTIVE": "423160",
+}
+PENSION_TICKER_NAMES = {code: name for name, code in PENSION_TICKERS.items()}
+PENSION_TARGET_WEIGHTS = {
+    "360750": 0.20,
+    "379810": 0.10,
+    "069500": 0.10,
+    "0072R0": 0.25,
+    "471230": 0.25,
+    "423160": 0.10,
+}
+PENSION_CATEGORIES = {
+    "해외주식": ["360750", "379810"],
+    "국내주식": ["069500"],
+    "금": ["0072R0"],
+    "국채": ["471230"],
+    "현금": ["423160"],
+}
 MARKET_TICKERS = {
     "코스피": "^KS11",
     "코스닥": "^KQ11",
@@ -423,6 +454,102 @@ def _pick_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
         if any(cand.lower() in cl for cand in candidates):
             return c
     return None
+
+
+# ======================
+# 연금저축 가격/데이터
+# ======================
+@dataclass(frozen=True)
+class RealtimeQuote:
+    code: str
+    price: float
+    change: float
+    change_rate: float
+    timestamp: str
+
+
+def _pick_number(item: dict, *keys: str) -> float | None:
+    for key in keys:
+        value = item.get(key)
+        if value in (None, ""):
+            continue
+        if isinstance(value, str):
+            value = value.replace(",", "")
+        return float(value)
+    return None
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _realtime_price_naver(code: str) -> RealtimeQuote:
+    url = f"https://polling.finance.naver.com/api/realtime/domestic/stock/{code}"
+    response = requests.get(url, timeout=10)
+    response.raise_for_status()
+    payload = response.json()
+    if not payload.get("datas"):
+        raise ValueError(f"No realtime data for {code}")
+    item = payload["datas"][0]
+    price = _pick_number(item, "nv", "last", "close", "ov", "closePrice")
+    change = _pick_number(
+        item,
+        "cv",
+        "change",
+        "cp",
+        "compareToPreviousClosePrice",
+        "compareToPreviousPrice",
+    )
+    change_rate = _pick_number(item, "cr", "changeRate", "crv", "fluctuationsRatio")
+    timestamp = item.get("dt") or item.get("rt") or item.get("localTradedAt") or ""
+    if price is None:
+        raise ValueError(f"Realtime schema mismatch for {code}: keys={list(item.keys())}")
+    if change is None:
+        change = 0.0
+    if change_rate is None:
+        change_rate = 0.0
+    return RealtimeQuote(
+        code=code,
+        price=price,
+        change=change,
+        change_rate=change_rate,
+        timestamp=timestamp,
+    )
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _krx_last_close(code: str) -> float:
+    if krx_stock is None:
+        raise RuntimeError("pykrx is not available.")
+    end = datetime.today()
+    start = end - timedelta(days=30)
+    df = krx_stock.get_market_ohlcv_by_date(start.strftime("%Y%m%d"), end.strftime("%Y%m%d"), code)
+    if df.empty:
+        raise ValueError(f"No OHLCV data for {code} in {start:%Y%m%d}~{end:%Y%m%d}")
+    return float(df["종가"].iloc[-1])
+
+
+def fetch_pension_quotes(codes: Iterable[str]) -> tuple[dict[str, RealtimeQuote], list[str], list[str]]:
+    quotes: dict[str, RealtimeQuote] = {}
+    used_fallback: list[str] = []
+    errors: list[str] = []
+    for code in codes:
+        try:
+            quotes[code] = _realtime_price_naver(code)
+        except Exception:
+            if krx_stock is None:
+                errors.append(f"{code}: realtime 실패 (pykrx 미설치)")
+                continue
+            try:
+                price = _krx_last_close(code)
+                quotes[code] = RealtimeQuote(
+                    code=code,
+                    price=price,
+                    change=0.0,
+                    change_rate=0.0,
+                    timestamp="pykrx",
+                )
+                used_fallback.append(code)
+            except Exception:
+                errors.append(f"{code}: realtime/pykrx 실패")
+    return quotes, used_fallback, errors
 
 
 # ======================
@@ -955,7 +1082,7 @@ def show_result(result: dict, current_holdings: dict, layout: str = "side"):
                     alt.Tooltip("Pct:Q", format=".1f"),
                 ],
             )
-            .properties(height=300, width=340)
+            .properties(height=300, width=420)
             .configure_view(strokeWidth=0)
             .configure_legend(padding=8)
             .configure_axis(labelPadding=8, titlePadding=8)
@@ -976,6 +1103,163 @@ def show_result(result: dict, current_holdings: dict, layout: str = "side"):
         render_portfolio_pie()
         render_target_clean()
         render_trades_clean()
+
+
+# ======================
+# 연금저축 결과 표시
+# ======================
+def compute_pension_result(holdings: dict, cash_krw: float, quote_map: dict[str, RealtimeQuote]) -> dict:
+    price_map = {code: float(q.price) for code, q in quote_map.items()}
+    missing = [code for code in PENSION_TICKERS.values() if float(price_map.get(code, 0.0)) <= 0]
+    if missing:
+        raise ValueError(f"가격을 못 가져온 종목: {', '.join(missing)}")
+
+    total_value = float(cash_krw)
+    for code in PENSION_TICKERS.values():
+        total_value += float(holdings.get(code, 0.0)) * float(price_map.get(code, 0.0))
+
+    targets = []
+    allocated_value = 0.0
+    for name, code in PENSION_TICKERS.items():
+        price = float(price_map.get(code, 0.0))
+        weight = float(PENSION_TARGET_WEIGHTS.get(code, 0.0))
+        target_value = total_value * weight
+        base_shares = int(target_value // price) if price > 0 else 0
+        remainder = (target_value / price - base_shares) if price > 0 else 0.0
+        targets.append(
+            {
+                "code": code,
+                "name": name,
+                "price": price,
+                "target_shares": base_shares,
+                "remainder": remainder,
+            }
+        )
+        allocated_value += base_shares * price
+
+    remaining_cash = total_value - allocated_value
+    targets.sort(key=lambda x: x["remainder"], reverse=True)
+    for item in targets:
+        if item["price"] <= 0:
+            continue
+        if remaining_cash >= item["price"]:
+            item["target_shares"] += 1
+            remaining_cash -= item["price"]
+
+    order = list(PENSION_TICKERS.values())
+    targets.sort(key=lambda x: order.index(x["code"]))
+
+    invested_value = sum(item["target_shares"] * item["price"] for item in targets)
+    for item in targets:
+        item["actual_pct"] = (item["target_shares"] * item["price"] / invested_value * 100) if invested_value else 0.0
+
+    category_totals = {k: 0.0 for k in PENSION_CATEGORIES.keys()}
+    for item in targets:
+        value = item["target_shares"] * item["price"]
+        for category, codes in PENSION_CATEGORIES.items():
+            if item["code"] in codes:
+                category_totals[category] += value
+                break
+    category_totals["현금"] = category_totals.get("현금", 0.0) + remaining_cash
+
+    return {
+        "price_map": price_map,
+        "total_value": total_value,
+        "cash_krw": float(cash_krw),
+        "remaining_cash": remaining_cash,
+        "targets": targets,
+        "category_totals": category_totals,
+    }
+
+
+def render_pension_result(result: dict, holdings: dict):
+    left, right = st.columns([2, 1], gap="large")
+    with left:
+        a, b, c = st.columns(3)
+        a.metric("총자산(₩)", f"₩{result['total_value']:,.0f}")
+        b.metric("현금(₩)", f"₩{result['cash_krw']:,.0f}")
+        c.metric("예상 현금 잔액(₩)", f"₩{result['remaining_cash']:,.0f}")
+
+        st.subheader("목표 보유자산")
+        cols = st.columns(3)
+        for i, item in enumerate(result["targets"]):
+            label = f"{item['name']} ({item['code']})"
+            with cols[i % 3]:
+                st.metric(label, f"{int(item['target_shares'])}주")
+
+        st.subheader("매도/매수")
+        rows = []
+        for item in result["targets"]:
+            code = item["code"]
+            name = item["name"]
+            cur = int(holdings.get(code, 0))
+            tar = int(item["target_shares"])
+            delta = tar - cur
+            if delta != 0:
+                rows.append((f"{name} ({code})", delta))
+
+        if not rows:
+            st.write("-")
+        else:
+            rows.sort(key=lambda x: (abs(x[1]), x[0]), reverse=True)
+            sells = [(t, -d) for t, d in rows if d < 0]
+            buys = [(t, d) for t, d in rows if d > 0]
+
+            s_left, s_right = st.columns(2)
+            with s_left:
+                st.markdown("**매도**")
+                if not sells:
+                    st.write("-")
+                else:
+                    for t, q in sells:
+                        st.write(f"{t} {q}주 매도")
+            with s_right:
+                st.markdown("**매입**")
+                if not buys:
+                    st.write("-")
+                else:
+                    for t, q in buys:
+                        st.write(f"{t} {q}주 매입")
+
+    with right:
+        st.subheader("포트폴리오 현황")
+        category_totals = result["category_totals"]
+        total = sum(category_totals.values())
+        if total <= 0:
+            st.write("-")
+        else:
+            rows = []
+            for cat, v in category_totals.items():
+                pct = round((v / total) * 100, 1)
+                rows.append(
+                    {
+                        "Category": cat,
+                        "CategoryLabel": f"{cat} {pct:.1f}%",
+                        "Value": float(v),
+                        "Pct": pct,
+                    }
+                )
+            df = pd.DataFrame(rows)
+            outer_radius = 120
+            chart = (
+                alt.Chart(df)
+                .mark_arc(outerRadius=outer_radius)
+                .encode(
+                    theta=alt.Theta("Value:Q"),
+                    color=alt.Color("CategoryLabel:N", legend=alt.Legend(title=None)),
+                    tooltip=[
+                        "Category:N",
+                        alt.Tooltip("Value:Q", format=",.2f"),
+                        alt.Tooltip("Pct:Q", format=".1f"),
+                    ],
+                )
+                .properties(height=300, width=420, background="#f5faff")
+                .configure_view(strokeWidth=0, fill="#f5faff")
+                .configure_legend(padding=8)
+                .configure_axis(labelPadding=8, titlePadding=8)
+                .properties(padding={"left": 12, "right": 12, "top": 4, "bottom": 4})
+            )
+            st.altair_chart(chart, use_container_width=False)
 
 
 # ======================
@@ -1200,51 +1484,52 @@ def run_month(prev: dict, cash_usd: float):
 # 화면: Annual / Monthly
 # ======================
 if mode == "Annual":
-    st.header("Annual Rebalancing")
+    st.header("연금저축 포트폴리오")
 
-    st.subheader("Assets")
-    amounts = {}
+    st.subheader("현재 보유자산")
+    holdings = {}
+    cols = st.columns(3)
+    for i, (name, code) in enumerate(PENSION_TICKERS.items()):
+        with cols[i % 3]:
+            label = f"{name} ({code})"
+            st.markdown(
+                f"<div style='color: var(--va-text); font-weight: 600; font-size: 0.9rem;'>{label}</div>",
+                unsafe_allow_html=True,
+            )
+            holdings[code] = st.number_input(
+                label,
+                min_value=0,
+                value=0,
+                step=1,
+                key=f"p_hold_{code}",
+                label_visibility="collapsed",
+            )
 
-    # ✅ 10개 티커 + 현금 = 11개 → 6칸 그리드
-    fields = INPUT_TICKERS + ["현금($)"]
-    cols = st.columns(6)
-
-    cash_usd = 0.0
-    for i, f in enumerate(fields):
-        with cols[i % 6]:
-            if f == "현금($)":
-                cash_usd = money_input("현금($)", key="y_cash_usd", default=0, allow_decimal=True)
-            else:
-                amounts[f] = st.number_input(f, min_value=0, value=0, step=1, key=f"y_amt_{f}")
+    cash_krw = money_input("현금(원)", key="p_cash_krw", default=0, allow_decimal=False)
 
     run_btn = st.button("리밸런싱", type="primary")
     if run_btn:
         try:
-            with st.spinner("계산 중..."):
-                result = run_year(amounts, cash_usd)
+            with st.spinner("실시간 가격 불러오는 중..."):
+                quote_map, used_fallback, errors = fetch_pension_quotes(PENSION_TICKERS.values())
+            result = compute_pension_result(holdings, cash_krw, quote_map)
+            result["quote_map"] = quote_map
+            result["used_fallback"] = used_fallback
+            result["errors"] = errors
+            result["holdings"] = {code: int(qty) for code, qty in holdings.items()}
             st.session_state["annual_result"] = result
-            _clear_keys_with_prefix("exec_annual_")  # 실행본 편집 키 초기화
-            st.success("Completed")
         except Exception as e:
             st.error(str(e))
 
     if "annual_result" in st.session_state:
         result = st.session_state["annual_result"]
-        current_holdings = {t: int(amounts.get(t, 0)) for t in INPUT_TICKERS}
+        if result.get("errors"):
+            st.warning("가격을 못 가져온 항목: " + ", ".join(result["errors"]))
+        if result.get("used_fallback"):
+            st.info("실시간 실패로 pykrx 대체: " + ", ".join(result["used_fallback"]))
 
-        show_result(result, current_holdings, layout="side")
+        render_pension_result(result, result.get("holdings", holdings))
         st.divider()
-
-        executed = render_execution_editor(result, editor_prefix="exec_annual_")
-        payload = export_holdings_only(executed, timestamp=result["timestamp"])
-
-        st.download_button(
-            label="저장",
-            data=json.dumps(payload, indent=2),
-            file_name=f"rebalance_exec_{result['timestamp'].replace(':','-').replace(' ','_')}.json",
-            mime="application/json",
-            use_container_width=False,
-        )
 
 if st.sidebar.button("새로고침", use_container_width=True):
     st.cache_data.clear()
