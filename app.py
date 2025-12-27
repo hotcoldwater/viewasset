@@ -237,6 +237,19 @@ section.main .vega-embed svg {
   background: var(--va-white) !important;
 }
 
+.va-exec-editor [data-testid="stNumberInput"] label,
+.va-exec-editor [data-testid="stNumberInput"] label *,
+.va-exec-editor [data-testid="stNumberInput"] label span,
+.va-exec-editor [data-testid="stNumberInput"] label p,
+.va-exec-editor [data-testid="stNumberInput"] div[data-testid="stMarkdownContainer"] * {
+  color: var(--va-text) !important;
+}
+
+section.main [data-testid="stNumberInput"] label[data-testid="stWidgetLabel"] p,
+section.main [data-testid="stNumberInput"] label[data-testid="stWidgetLabel"] {
+  color: var(--va-text) !important;
+}
+
 input, textarea, select {
   color: var(--va-text) !important;
   background: var(--va-white) !important;
@@ -999,6 +1012,7 @@ def render_execution_editor(result: dict, editor_prefix: str):
     }
     executed = {"VAA": {"holdings": {}}, "LAA": {"holdings": {}}, "TDM": {"holdings": {}}}
 
+    st.markdown("<div class='va-exec-editor'>", unsafe_allow_html=True)
     for idx, strat in enumerate(["VAA", "LAA", "TDM"]):
         rec = result[strat]["holdings"]
 
@@ -1012,13 +1026,25 @@ def render_execution_editor(result: dict, editor_prefix: str):
             default_q = int(rec.get(t, 0))
             key = f"{editor_prefix}{strat}_{t}"
             with cols[i % 5]:
-                q = st.number_input(t, min_value=0, value=default_q, step=1, key=key)
+                st.markdown(
+                    f"<div style='color: var(--va-text); font-weight: 600; font-size: 0.9rem;'>{t}</div>",
+                    unsafe_allow_html=True,
+                )
+                q = st.number_input(
+                    t,
+                    min_value=0,
+                    value=default_q,
+                    step=1,
+                    key=key,
+                    label_visibility="collapsed",
+                )
 
             if int(q) != 0:
                 executed[strat]["holdings"][t] = int(q)
 
         if idx < 2:
             st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     return executed
 
