@@ -40,7 +40,7 @@ alt.themes.enable("va_light")
 # ======================
 # 공통 설정
 # ======================
-TICKER_LIST = ["SPY", "EFA", "EEM", "AGG", "LQD", "IEF", "SHY", "IWD", "GLD", "QQQ", "BIL"]
+TICKER_LIST = ["IVV", "IEFA", "IEMG", "AGG", "LQD", "IEF", "VGSH", "VONV", "IAUM", "QQQ", "BIL"]
 MARKET_TICKERS = {
     "코스피": "^KS11",
     "코스닥": "^KQ11",
@@ -52,11 +52,11 @@ MARKET_TICKERS = {
 INPUT_TICKERS = [t for t in TICKER_LIST if t != "BIL"]
 
 # ✅ 전략 티커/룰 설정 (여기만 수정하면 전체 반영)
-VAA_SIGNAL = ["SPY", "EFA", "EEM"]
-VAA_RISK_ON = ["SPY", "EFA", "EEM", "AGG"]
-VAA_DEFENSIVE = ["LQD", "IEF", "SHY"]
-LAA_TICKERS = ["IWD", "GLD", "IEF", "QQQ", "SHY"]
-TDM_TICKERS = ["SPY", "EFA", "AGG", "SHY", "IEF"]
+VAA_SIGNAL = ["IVV", "IEFA", "IEMG"]
+VAA_RISK_ON = ["IVV", "IEFA", "IEMG", "AGG"]
+VAA_DEFENSIVE = ["LQD", "IEF", "VGSH"]
+LAA_TICKERS = ["VONV", "IAUM", "IEF", "QQQ", "VGSH"]
+TDM_TICKERS = ["IVV", "IEFA", "AGG", "VGSH", "IEF"]
 
 # ✅ VAA 모멘텀 표기(7개) + 선택도 7개 중에서
 VAA_UNIVERSE = VAA_RISK_ON + VAA_DEFENSIVE
@@ -677,13 +677,13 @@ def safe_laa_asset(today: datetime, prices: dict) -> str:
     except Exception:
         return "QQQ"
 
-    spy_hist = _download_hist_one("SPY", period="2y")
+    spy_hist = _download_hist_one("IVV", period="2y")
     spy_200ma = spy_hist["Adj Close"].rolling(200).mean().iloc[-1]
     if spy_200ma != spy_200ma:
         return "QQQ"
 
-    risk_off = (float(prices["SPY"]) < float(spy_200ma)) and (unrate_now > unrate_ma)
-    return "SHY" if risk_off else "QQQ"
+    risk_off = (float(prices["IVV"]) < float(spy_200ma)) and (unrate_now > unrate_ma)
+    return "VGSH" if risk_off else "QQQ"
 
 
 def r12_return(prices: dict, t: str, d_12m: datetime) -> float:
@@ -728,23 +728,23 @@ def vaa_target_weights(scores: dict) -> tuple[dict, dict]:
 
 
 def tdm_target_weights(prices: dict, d_12m: datetime, prev_pick: str | None) -> tuple[dict, dict]:
-    r_spy = r12_return(prices, "SPY", d_12m)
-    r_efa = r12_return(prices, "EFA", d_12m)
+    r_spy = r12_return(prices, "IVV", d_12m)
+    r_efa = r12_return(prices, "IEFA", d_12m)
     r_bil = r12_return(prices, "BIL", d_12m)
 
     if r_spy >= r_bil:
-        top = "SPY" if r_spy >= r_efa else "EFA"
-        if prev_pick in ["SPY", "EFA"] and top != prev_pick and abs(r_spy - r_efa) < 0.05:
+        top = "IVV" if r_spy >= r_efa else "IEFA"
+        if prev_pick in ["IVV", "IEFA"] and top != prev_pick and abs(r_spy - r_efa) < 0.05:
             top = prev_pick
         weights = {top: 1.0}
-        meta = {"picked": [top], "mode": "attack", "r12": {"SPY": r_spy, "EFA": r_efa, "BIL": r_bil}}
+        meta = {"picked": [top], "mode": "attack", "r12": {"IVV": r_spy, "IEFA": r_efa, "BIL": r_bil}}
         return weights, meta
 
     r_agg = r12_return(prices, "AGG", d_12m)
-    r_shy = r12_return(prices, "SHY", d_12m)
+    r_shy = r12_return(prices, "VGSH", d_12m)
     r_ief = r12_return(prices, "IEF", d_12m)
     ranked = sorted(
-        [("AGG", r_agg), ("SHY", r_shy), ("IEF", r_ief)],
+        [("AGG", r_agg), ("VGSH", r_shy), ("IEF", r_ief)],
         key=lambda x: float(x[1]),
         reverse=True,
     )
@@ -753,14 +753,14 @@ def tdm_target_weights(prices: dict, d_12m: datetime, prev_pick: str | None) -> 
     meta = {
         "picked": [top],
         "mode": "defense",
-        "r12": {"AGG": r_agg, "SHY": r_shy, "IEF": r_ief, "BIL": r_bil, "SPY": r_spy},
+        "r12": {"AGG": r_agg, "VGSH": r_shy, "IEF": r_ief, "BIL": r_bil, "IVV": r_spy},
     }
     return weights, meta
 
 
 def laa_target_weights(today: datetime, prices: dict, prev_pick: str | None) -> tuple[dict, dict]:
     laa_safe = safe_laa_asset(today, prices)
-    weights = {"IWD": 0.25, "GLD": 0.25, "IEF": 0.25, laa_safe: 0.25}
+    weights = {"VONV": 0.25, "IAUM": 0.25, "IEF": 0.25, laa_safe: 0.25}
     meta = {"safe": laa_safe, "prev_safe": prev_pick}
     return weights, meta
 
@@ -873,11 +873,11 @@ def show_result(result: dict, current_holdings: dict, layout: str = "side"):
             cycle_label = "판단불가"
 
         try:
-            spy_hist = _download_hist_one("SPY", period="2y")
+            spy_hist = _download_hist_one("IVV", period="2y")
             spy_200ma = spy_hist["Adj Close"].rolling(200).mean().iloc[-1]
             if spy_200ma != spy_200ma:
-                raise RuntimeError("SPY 200MA is NaN.")
-            trend_label = "상승장" if float(price_map["SPY"]) >= float(spy_200ma) else "하락장"
+                raise RuntimeError("IVV 200MA is NaN.")
+            trend_label = "상승장" if float(price_map["IVV"]) >= float(spy_200ma) else "하락장"
         except Exception:
             trend_label = "판단불가"
 
@@ -889,9 +889,9 @@ def show_result(result: dict, current_holdings: dict, layout: str = "side"):
     def render_portfolio_pie():
         st.subheader("포트폴리오 현황")
         cat_map = {
-            "주식": {"SPY", "EFA", "EEM", "IWD"},
-            "채권": {"IEF", "SHY"},
-            "금": {"GLD"},
+            "주식": {"IVV", "IEFA", "IEMG", "VONV"},
+            "채권": {"IEF", "VGSH"},
+            "금": {"IAUM"},
             "현금": {"BIL"},
         }
 
@@ -1126,7 +1126,7 @@ def run_month(prev: dict, cash_usd: float):
         add_cash = float(budgets["VAA"] - values["VAA"])
         vaa_hold, vaa_cash_usd = add_cash_by_weights(vaa_prev_hold, add_cash, vaa_weights, prices)
 
-    laa_prev_pick = infer_prev_pick(laa_prev_hold, ["QQQ", "SHY"])
+    laa_prev_pick = infer_prev_pick(laa_prev_hold, ["QQQ", "VGSH"])
     laa_weights, laa_meta = laa_target_weights(today, prices, prev_pick=laa_prev_pick)
     laa_current_weights = holdings_weights(laa_prev_hold, prices)
     laa_internal_reb = needs_rebalance(laa_current_weights, laa_weights, REBALANCE_BAND) or not laa_prev_hold
@@ -1138,7 +1138,7 @@ def run_month(prev: dict, cash_usd: float):
         add_cash = float(budgets["LAA"] - values["LAA"])
         laa_hold, laa_cash_usd = add_cash_by_weights(laa_prev_hold, add_cash, laa_weights, prices)
 
-    tdm_prev_pick = infer_prev_pick(tdm_prev_hold, ["SPY", "EFA", "AGG", "SHY", "IEF"])
+    tdm_prev_pick = infer_prev_pick(tdm_prev_hold, ["IVV", "IEFA", "AGG", "VGSH", "IEF"])
     tdm_weights, tdm_meta = tdm_target_weights(prices, d_12m, prev_pick=tdm_prev_pick)
     tdm_current_weights = holdings_weights(tdm_prev_hold, prices)
     tdm_internal_reb = needs_rebalance(tdm_current_weights, tdm_weights, REBALANCE_BAND) or not tdm_prev_hold
