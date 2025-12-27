@@ -105,13 +105,18 @@ section.main a {
 [data-testid="stSidebar"] .stButton > button {
   border-color: var(--va-blue-200);
   background: var(--va-white);
-  color: var(--va-blue-700);
+  color: var(--va-text);
 }
 
 [data-testid="stSidebar"] .stButton > button[kind="primary"] {
   background: var(--va-blue-200);
-  color: var(--va-blue-900);
+  color: var(--va-text);
   border-color: var(--va-blue-200);
+}
+
+[data-testid="stSidebar"] .stButton > button *,
+[data-testid="stSidebar"] .stButton > button[kind="primary"] * {
+  color: var(--va-text);
 }
 
 [data-testid="stSidebar"] .stButton > button:hover {
@@ -126,6 +131,13 @@ section.main a {
 input, textarea, select {
   color: var(--va-text) !important;
   background: var(--va-white) !important;
+}
+
+[data-testid="stTextInput"] label,
+[data-testid="stFileUploader"] label,
+.stDownloadButton > button,
+.stDownloadButton > button * {
+  color: var(--va-text) !important;
 }
 
 div[data-testid="stMetric"] {
