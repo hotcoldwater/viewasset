@@ -116,13 +116,13 @@ section.main a {
 }
 
 section.main [data-testid="stExpander"] details {
-  background: var(--va-white);
+  background: var(--va-white) !important;
   border: 1px solid var(--va-border);
   border-radius: 10px;
 }
 
 section.main [data-testid="stExpander"] {
-  background: var(--va-white);
+  background: var(--va-white) !important;
   border: 1px solid var(--va-border);
   border-radius: 10px;
 }
@@ -142,8 +142,13 @@ section.main [data-testid="stExpander"] details[open] summary {
 }
 
 section.main [data-testid="stExpander"] details > div {
-  background: var(--va-white);
-  color: var(--va-text);
+  background: var(--va-white) !important;
+  color: var(--va-text) !important;
+}
+
+section.main [data-testid="stExpander"] details[open] > div {
+  background: var(--va-white) !important;
+  color: var(--va-text) !important;
 }
 
 .stButton > button {
