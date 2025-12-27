@@ -923,9 +923,13 @@ def show_result(result: dict, current_holdings: dict, layout: str = "side"):
                     alt.Tooltip("Pct:Q", format=".1f"),
                 ],
             )
-            .properties(height=280, width=320)
+            .properties(height=300, width=340)
+            .configure_view(strokeWidth=0)
+            .configure_legend(padding=8)
+            .configure_axis(labelPadding=8, titlePadding=8)
+            .properties(padding={"left": 12, "right": 12, "top": 4, "bottom": 4})
         )
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart, use_container_width=False)
 
     if layout == "side":
         left, right = st.columns([2, 1], gap="large")
