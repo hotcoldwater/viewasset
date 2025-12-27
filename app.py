@@ -42,6 +42,7 @@ STRATEGY_TICKERS = {
 
 st.set_page_config(page_title="Rebalance (Private)", layout="wide")
 st.sidebar.title("AssetView")
+st.sidebar.subheader("자산 관리")
 
 
 # ======================
