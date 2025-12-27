@@ -967,19 +967,17 @@ elif mode == "Monthly":
 
         prev = json.loads(json.dumps(prev_raw))  # deep copy
 
-        st.subheader("")
-
-        with st.expander("Previous", expanded=False):
-            merged_prev = merge_holdings(prev["VAA"]["holdings"], prev["LAA"]["holdings"], prev["TDM"]["holdings"])
-            items = [(t, int(q)) for t, q in merged_prev.items() if int(q) != 0]
-            items.sort(key=lambda x: x[0])
-            if not items:
-                st.write("-")
-            else:
-                cols = st.columns(5)
-                for i, (t, q) in enumerate(items):
-                    with cols[i % 5]:
-                        st.metric(t, f"{q}주")
+        st.subheader("현재 보유자산")
+        merged_prev = merge_holdings(prev["VAA"]["holdings"], prev["LAA"]["holdings"], prev["TDM"]["holdings"])
+        items = [(t, int(q)) for t, q in merged_prev.items() if int(q) != 0]
+        items.sort(key=lambda x: x[0])
+        if not items:
+            st.write("-")
+        else:
+            cols = st.columns(5)
+            for i, (t, q) in enumerate(items):
+                with cols[i % 5]:
+                    st.metric(t, f"{q}주")
 
     run_btn = st.button("리밸런싱", type="primary")
     if run_btn:
