@@ -39,6 +39,111 @@ STRATEGY_TICKERS = {
 }
 
 st.set_page_config(page_title="Rebalance (Private)", layout="wide")
+st.markdown(
+    """
+<style>
+:root {
+  --va-blue-900: #0b2a4a;
+  --va-blue-700: #134b7f;
+  --va-blue-500: #1e6fbf;
+  --va-blue-200: #d7e9fb;
+  --va-blue-50: #f5faff;
+  --va-white: #ffffff;
+  --va-text: #0b1c2c;
+  --va-text-invert: #ffffff;
+  --va-border: #c8ddf5;
+}
+
+.stApp {
+  background: linear-gradient(180deg, var(--va-blue-50) 0%, var(--va-white) 60%);
+  color: var(--va-text);
+}
+
+[data-testid="stHeader"] {
+  background: transparent;
+}
+
+[data-testid="stSidebar"] {
+  background: linear-gradient(180deg, var(--va-blue-900) 0%, var(--va-blue-700) 100%);
+}
+
+[data-testid="stSidebar"] * {
+  color: var(--va-text-invert);
+}
+
+.stButton > button {
+  border: 1px solid var(--va-blue-500);
+  background: var(--va-white);
+  color: var(--va-blue-700);
+  font-weight: 600;
+}
+
+.stButton > button[kind="primary"] {
+  background: var(--va-blue-500);
+  color: var(--va-text-invert);
+  border-color: var(--va-blue-500);
+}
+
+.stButton > button:hover {
+  border-color: var(--va-blue-700);
+  color: var(--va-blue-900);
+}
+
+.stButton > button[kind="primary"]:hover {
+  background: var(--va-blue-700);
+  color: var(--va-text-invert);
+}
+
+[data-testid="stSidebar"] .stButton > button {
+  border-color: var(--va-blue-200);
+  background: var(--va-white);
+  color: var(--va-blue-700);
+}
+
+[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+  background: var(--va-blue-200);
+  color: var(--va-blue-900);
+  border-color: var(--va-blue-200);
+}
+
+[data-testid="stSidebar"] .stButton > button:hover {
+  color: var(--va-blue-900);
+}
+
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+  background: var(--va-blue-50);
+  color: var(--va-blue-900);
+}
+
+input, textarea, select {
+  color: var(--va-text) !important;
+  background: var(--va-white) !important;
+}
+
+div[data-testid="stMetric"] {
+  background: var(--va-white);
+  border: 1px solid var(--va-border);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+div[data-testid="stMetric"] * {
+  color: var(--va-text);
+}
+
+div[data-testid="stDataFrame"] {
+  background: var(--va-white);
+}
+
+div[data-testid="stAlert"] {
+  background: #e6f1ff;
+  color: var(--va-text);
+  border-color: var(--va-blue-200);
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 st.sidebar.title("AssetView")
 st.sidebar.subheader("자산 관리")
 
